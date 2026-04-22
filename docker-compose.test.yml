@@ -1,0 +1,102 @@
+version: '3.8'
+
+services:
+  mock-azure:
+    build:
+      context: .
+      dockerfile: Dockerfile.mock-azure
+    container_name: superpull-mock-azure-test
+    ports:
+      - "8091:8091"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8091/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+    # Mock server is lightweight
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+
+  bitbucket:
+    image: atlassian/bitbucket-server:latest
+    container_name: superpull-bitbucket-test
+    ports:
+      - "7991:7990"
+    volumes:
+      - bitbucket_data:/var/atlassian/application-data/bitbucket
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7990"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    # Bitbucket Server requires significant resources
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+
+  gitea:
+    image: gitea/gitea:latest
+    container_name: superpull-gitea-test
+    ports:
+      - "3001:3000"
+    environment:
+      - GITEA__DATABASE__DB_TYPE=sqlite3
+      - GITEA__SECURITY__INSTALL_LOCK=false
+    volumes:
+      - gitea_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  mock-github:
+    build:
+      context: .
+      dockerfile: Dockerfile.mock-github
+    container_name: superpull-mock-github-test
+    ports:
+      - "8443:8443"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8443/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+    # Mock server is lightweight
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+
+  gitlab:
+    image: gitlab/gitlab-ce:latest
+    container_name: superpull-gitlab-test
+    ports:
+      - "8080:80"
+    environment:
+      - GITLAB_ROOT_PASSWORD=test12345
+      - GITLAB_OMNIBUS_CONFIG=
+    volumes:
+      - gitlab_data:/var/opt/gitlab
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    # GitLab requires significant resources
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+
+volumes:
+  bitbucket_data:
+  gitea_data:
+  gitlab_data:

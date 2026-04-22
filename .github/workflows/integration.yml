@@ -1,0 +1,72 @@
+name: Integration Tests
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+    branches:
+      - main
+      - develop
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+  SUPERPULL_INTEGRATION_TESTS: 1
+
+jobs:
+  integration-tests:
+    name: Integration Tests - ${{ matrix.test-name }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - test-name: Mock Azure DevOps
+            test-filter: azure_devops_clone_with_superpull
+
+          - test-name: Bitbucket
+            test-filter: bitbucket_clone_with_superpull
+
+          - test-name: Gitea
+            test-filter: gitea_clone_with_superpull
+
+          - test-name: Mock GitHub Enterprise
+            test-filter: github_enterprise_clone_with_superpull
+
+          - test-name: GitLab
+            test-filter: gitlab_clone_with_superpull
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build superpull
+        run: cargo build --release
+
+      - name: Build mock servers
+        run: cargo build --release --features mock-server
+
+      - name: Start Docker daemon (already running on ubuntu-latest)
+        run: docker info
+
+      - name: Run integration test - ${{ matrix.test-name }}
+        run: |
+          cargo test ${{ matrix.test-filter }} \
+            --release \
+            -- --ignored --nocapture --test-threads=1
+        timeout-minutes: 10
+
+      - name: Show logs on failure
+        if: failure()
+        run: |
+          echo "=== Docker containers ==="
+          docker ps -a
+          echo "=== Docker logs ==="
+          docker logs superpull-mock-github-test 2>/dev/null || true
+          docker logs superpull-mock-azure-test 2>/dev/null || true
