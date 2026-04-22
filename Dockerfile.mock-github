@@ -1,0 +1,39 @@
+# Builder stage
+FROM rust:latest as builder
+
+WORKDIR /build
+
+# Copy Cargo.toml (don't copy lock file due to potential version mismatches)
+COPY Cargo.toml ./
+
+# Create dummy source to cache dependencies
+RUN mkdir -p src && \
+    echo "fn main() {}" > src/lib.rs
+
+# Build dependencies (this layer will be cached)
+RUN cargo build --release --bin mock-github-server --features mock-server 2>&1 | head -20 || true
+
+# Copy actual source
+COPY src ./src
+
+# Build the mock server
+RUN cargo build --release --bin mock-github-server --features mock-server
+
+# Runtime stage
+FROM debian:bookworm-slim
+
+RUN apt-get update && apt-get install -y \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /build/target/release/mock-github-server /usr/local/bin/
+
+EXPOSE 8443
+
+# Health check
+HEALTHCHECK --interval=2s --timeout=3s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8443/health || exit 1
+
+ENV PORT=8443
+
+CMD ["mock-github-server"]
