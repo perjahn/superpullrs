@@ -1,11 +1,11 @@
 use std::process::Command;
 
 mod docker_helpers;
-use docker_helpers::{is_docker_available, DockerContainer};
+use docker_helpers::{DockerContainer, is_docker_available};
 
 fn check_forgejo_ready(port: u16) -> bool {
     Command::new("curl")
-        .args(&[
+        .args([
             "-s",
             &format!("http://127.0.0.1:{}/", port),
             "-o",
@@ -61,7 +61,7 @@ fn forgejo_clone_with_superpull() {
         }
     }
 
-    println!("Testing superpull foj-clone against Forgejo...");
+    println!("Testing superpull foj against Forgejo...");
 
     // Create output directory for cloned repos
     let output_dir = "/tmp/superpull-forgejo-test";
@@ -72,15 +72,14 @@ fn forgejo_clone_with_superpull() {
 
     // Run superpull against Forgejo
     let superpull_output = Command::new("./target/release/superpull")
-        .args(&[
-            "foj-clone",
+        .args([
+            "foj",
             "http://127.0.0.1:3002",
             "test-user",
             output_dir,
             "-a",
             "test-token",
         ])
-        .env("GIT_TERMINAL_PROMPT", "0")
         .output();
 
     match superpull_output {

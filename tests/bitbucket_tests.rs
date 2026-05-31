@@ -1,11 +1,11 @@
 use std::process::Command;
 
 mod docker_helpers;
-use docker_helpers::{is_docker_available, DockerContainer};
+use docker_helpers::{DockerContainer, is_docker_available};
 
 fn check_bitbucket_ready(port: u16) -> bool {
     Command::new("curl")
-        .args(&[
+        .args([
             "-s",
             &format!("http://127.0.0.1:{}/", port),
             "-o",
@@ -36,13 +36,13 @@ fn bitbucket_clone_with_superpull() {
         return;
     }
 
-    println!("Starting Bitbucket Server container...");
+    println!("Starting Bitbucket container...");
 
-    // Note: Bitbucket Server requires significant resources (4GB+ RAM recommended)
+    // Note: Bitbucket requires significant resources (4GB+ RAM recommended)
     // and a license key. For testing purposes, this container will start but
     // the UI may not be fully functional without a license.
     let container = match DockerContainer::start(
-        "atlassian/bitbucket-server:latest",
+        "atlassian/bitbucket:latest",
         "superpull-bitbucket-test",
         7990,
         7991,
@@ -56,9 +56,9 @@ fn bitbucket_clone_with_superpull() {
     };
 
     // Wait for Bitbucket to be ready (this can take several minutes)
-    println!("Waiting for Bitbucket Server to become ready (this may take 3-5 minutes)...");
+    println!("Waiting for Bitbucket to become ready (this may take 3-5 minutes)...");
     match container.wait_for_ready(check_bitbucket_ready, 90) {
-        Ok(_) => println!("Bitbucket Server is ready"),
+        Ok(_) => println!("Bitbucket is ready"),
         Err(e) => {
             eprintln!("Error: {}", e);
             eprintln!("Container logs:\n{}", container.get_logs());
@@ -66,7 +66,7 @@ fn bitbucket_clone_with_superpull() {
         }
     }
 
-    println!("Testing superpull bb-clone against Bitbucket Server...");
+    println!("Testing superpull bb against Bitbucket...");
 
     // Create output directory for cloned repos
     let output_dir = "/tmp/superpull-bitbucket-test";
@@ -77,8 +77,8 @@ fn bitbucket_clone_with_superpull() {
 
     // Run superpull against the Bitbucket Server (v1 API)
     let superpull_output = Command::new("./target/release/superpull")
-        .args(&[
-            "bb-clone",
+        .args([
+            "bb",
             output_dir,
             "-s",
             "http://127.0.0.1:7990",
@@ -86,7 +86,6 @@ fn bitbucket_clone_with_superpull() {
             "test-token",
             "-1",
         ])
-        .env("GIT_TERMINAL_PROMPT", "0")
         .output();
 
     match superpull_output {
@@ -143,11 +142,11 @@ fn bitbucket_clone_api_v1() {
         return;
     }
 
-    println!("Starting Bitbucket Server container for API v1 testing...");
+    println!("Starting Bitbucket container for API v1 testing...");
 
-    // Start a Bitbucket Server instance for testing API v1 support
+    // Start a Bitbucket instance for testing API v1 support
     let container = match DockerContainer::start(
-        "atlassian/bitbucket-server:latest",
+        "atlassian/bitbucket:latest",
         "superpull-bitbucket-v1-test",
         7990,
         7991,
@@ -161,9 +160,11 @@ fn bitbucket_clone_api_v1() {
     };
 
     // Wait for Bitbucket to be ready
-    println!("Waiting for Bitbucket Server to become ready for API v1 testing (this may take 3-5 minutes)...");
+    println!(
+        "Waiting for Bitbucket to become ready for API v1 testing (this may take 3-5 minutes)..."
+    );
     match container.wait_for_ready(check_bitbucket_ready, 90) {
-        Ok(_) => println!("Bitbucket Server is ready"),
+        Ok(_) => println!("Bitbucket is ready"),
         Err(e) => {
             eprintln!("Error: {}", e);
             eprintln!("Container logs:\n{}", container.get_logs());
@@ -174,7 +175,7 @@ fn bitbucket_clone_api_v1() {
     // Test that API v1 is accessible
     println!("Testing Bitbucket API v1 accessibility...");
     let api_test = Command::new("curl")
-        .args(&["-s", "-f", "http://127.0.0.1:7990/rest/api/1.0/repos"])
+        .args(["-s", "-f", "http://127.0.0.1:7990/rest/api/1.0/repos"])
         .output();
 
     match api_test {

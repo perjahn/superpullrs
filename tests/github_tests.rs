@@ -1,17 +1,17 @@
 //! GitHub Enterprise Server Integration Tests
 //!
 //! These tests use a mock GitHub Enterprise Server (Docker container) that provides
-//! a minimal GitHub API v3 compatible interface for testing superpull's gh-clone command.
+//! a minimal GitHub API v3 compatible interface for testing superpull's gh command.
 
 use std::path::Path;
 use std::process::Command;
 
 mod docker_helpers;
-use docker_helpers::{is_docker_available, DockerContainer};
+use docker_helpers::{DockerContainer, is_docker_available};
 
 fn check_mock_github_ready(port: u16) -> bool {
     Command::new("curl")
-        .args(&["-s", "-f", &format!("http://127.0.0.1:{}/health", port)])
+        .args(["-s", "-f", &format!("http://127.0.0.1:{}/health", port)])
         .output()
         .map(|output| output.status.success())
         .unwrap_or(false)
@@ -34,7 +34,7 @@ fn github_clone_with_superpull() {
 
     // Build the mock server image
     let build_output = Command::new("docker")
-        .args(&[
+        .args([
             "build",
             "-f",
             "Dockerfile.mock-github",
@@ -86,7 +86,7 @@ fn github_clone_with_superpull() {
         }
     }
 
-    println!("Testing superpull gh-clone against mock GitHub server...");
+    println!("Testing superpull gh against mock GitHub server...");
 
     // Create output directory for cloned repos
     let output_dir = "/tmp/superpull-mock-github-test";
@@ -98,9 +98,8 @@ fn github_clone_with_superpull() {
     // Run superpull against the mock server
     let superpull_output = Command::new("./target/release/superpull")
         .env("GITHUB_TOKEN", "test-token")
-        .env("GIT_TERMINAL_PROMPT", "0")
-        .args(&[
-            "gh-clone",
+        .args([
+            "gh",
             "-s",
             "http://127.0.0.1:8443/api/v3",
             "test-org",

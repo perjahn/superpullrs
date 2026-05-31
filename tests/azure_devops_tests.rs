@@ -1,17 +1,17 @@
 //! Azure DevOps Server Integration Tests
 //!
 //! These tests use a mock Azure DevOps Server (Docker container) that provides
-//! a minimal Azure DevOps API v7.1 compatible interface for testing superpull's az-clone command.
+//! a minimal Azure DevOps API v7.1 compatible interface for testing superpull's az command.
 
 use std::path::Path;
 use std::process::Command;
 
 mod docker_helpers;
-use docker_helpers::{is_docker_available, DockerContainer};
+use docker_helpers::{DockerContainer, is_docker_available};
 
 fn check_mock_azure_ready(port: u16) -> bool {
     Command::new("curl")
-        .args(&["-s", "-f", &format!("http://127.0.0.1:{}/health", port)])
+        .args(["-s", "-f", &format!("http://127.0.0.1:{}/health", port)])
         .output()
         .map(|output| output.status.success())
         .unwrap_or(false)
@@ -34,7 +34,7 @@ fn azure_devops_clone_with_superpull() {
 
     // Build the mock server image
     let build_output = Command::new("docker")
-        .args(&[
+        .args([
             "build",
             "-f",
             "Dockerfile.mock-azure",
@@ -86,7 +86,7 @@ fn azure_devops_clone_with_superpull() {
         }
     }
 
-    println!("Testing superpull az-clone against mock Azure DevOps server...");
+    println!("Testing superpull az against mock Azure DevOps server...");
 
     // Create output directory for cloned repos
     let output_dir = "/tmp/superpull-mock-azure-test";
@@ -96,9 +96,9 @@ fn azure_devops_clone_with_superpull() {
     std::fs::create_dir_all(output_dir).expect("Failed to create output dir");
 
     // Run superpull against the mock server
-    let superpull_output = Command::new("./target/release/superpull")
-        .args(&[
-            "az-clone",
+    let superpull_output = std::process::Command::new("./target/release/superpull")
+        .args([
+            "az",
             "-a",
             "test-token",
             "-s",
@@ -106,7 +106,6 @@ fn azure_devops_clone_with_superpull() {
             "test-org",
             output_dir,
         ])
-        .env("GIT_TERMINAL_PROMPT", "0")
         .output();
 
     match superpull_output {

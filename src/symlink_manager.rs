@@ -55,19 +55,19 @@ pub async fn create_symbolic_links(repos: &[(String, String)], target_folder: &s
                     let target = format!("../{}", submodule);
                     let symlink_path = format!("{}/{}", repo_path, submodule);
 
-                    if let Ok(metadata) = std::fs::symlink_metadata(&symlink_path) {
-                        if metadata.is_symlink() {
-                            if let Ok(link_target) = std::fs::read_link(&symlink_path) {
-                                if link_target.to_string_lossy() == target {
-                                    println!(
-                                        "Existing symbolic link for submodule: '{}' '{}' -> '{}'",
-                                        repo_path, submodule, target
-                                    );
-                                    continue;
-                                }
-                            }
-                            let _ = std::fs::remove_file(&symlink_path);
+                    if let Ok(metadata) = std::fs::symlink_metadata(&symlink_path)
+                        && metadata.is_symlink()
+                    {
+                        if let Ok(link_target) = std::fs::read_link(&symlink_path)
+                            && link_target.to_string_lossy() == target
+                        {
+                            println!(
+                                "Existing symbolic link for submodule: '{}' '{}' -> '{}'",
+                                repo_path, submodule, target
+                            );
+                            continue;
                         }
+                        let _ = std::fs::remove_file(&symlink_path);
                     }
 
                     println!(

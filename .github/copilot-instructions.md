@@ -6,13 +6,13 @@ A fast, parallel git repository puller written in Rust. This is a Rust port of t
 
 Superpull provides seven main commands:
 
-1. **super-pull**: Recursively finds and pulls all git repositories in a directory
-2. **az-clone**: Clones all repositories from an Azure DevOps organization with parallel execution
-3. **bb-clone**: Clones all repositories from a Bitbucket Cloud workspace with parallel execution
-4. **gea-clone**: Clones all repositories from a self-hosted Gitea instance with parallel execution
-5. **foj-clone**: Clones all repositories from a self-hosted Forgejo instance with parallel execution
-6. **gh-clone**: Clones all repositories from a GitHub organization or user with parallel execution
-7. **gl-clone**: Clones all repositories from a GitLab group or user with parallel execution
+1. **pull**: Recursively finds and pulls all git repositories in a directory
+2. **az**: Clones all repositories from an Azure DevOps organization with parallel execution
+3. **bb**: Clones all repositories from a Bitbucket Cloud workspace with parallel execution
+4. **gea**: Clones all repositories from a self-hosted Gitea instance with parallel execution
+5. **foj**: Clones all repositories from a self-hosted Forgejo instance with parallel execution
+6. **gh**: Clones all repositories from a GitHub organization or user with parallel execution
+7. **gl**: Clones all repositories from a GitLab group or user with parallel execution
 
 ## Development
 

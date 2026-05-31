@@ -19,7 +19,7 @@ impl DockerContainer {
     ) -> Result<Self, String> {
         // Check if container already exists and remove it
         let _ = Command::new("docker")
-            .args(&["rm", "-f", name])
+            .args(["rm", "-f", name])
             .stdout(Stdio::null())
             .stderr(Stdio::null())
             .output();
@@ -78,9 +78,10 @@ impl DockerContainer {
         ))
     }
 
+    #[allow(dead_code)]
     pub fn get_logs(&self) -> String {
         Command::new("docker")
-            .args(&["logs", &self.name])
+            .args(["logs", &self.name])
             .output()
             .ok()
             .map(|output| String::from_utf8_lossy(&output.stdout).to_string())
@@ -91,7 +92,7 @@ impl DockerContainer {
 impl Drop for DockerContainer {
     fn drop(&mut self) {
         let _ = Command::new("docker")
-            .args(&["rm", "-f", &self.name])
+            .args(["rm", "-f", &self.name])
             .stdout(Stdio::null())
             .stderr(Stdio::null())
             .output();

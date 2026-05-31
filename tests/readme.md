@@ -54,18 +54,18 @@ If you have access to an Azure DevOps Server instance, you can manually test sup
 
 1. **Set up Azure DevOps Server** on Windows hardware or VM
 2. **Generate a Personal Access Token (PAT)** with appropriate scopes
-3. **Run superpull az-clone** with the `-s` server URL flag:
+3. **Run superpull az** with the `-s` server URL flag:
 
 ```bash
 # Azure DevOps Server on-prem
-./target/release/superpull az-clone \
+./target/release/superpull az \
   -a YOUR_PAT \
   -s https://your-devops-server.internal:8080 \
   YOUR_ORGANIZATION \
   ./cloned-repos
 
 # Or with cloud Azure DevOps (no -s flag needed)
-./target/release/superpull az-clone \
+./target/release/superpull az \
   -a YOUR_PAT \
   YOUR_ORGANIZATION \
   ./cloned-repos
@@ -101,12 +101,12 @@ docker-compose -f docker-compose.test.yml up forgejo
 If you have access to a self-hosted Forgejo instance, you can manually test superpull:
 
 1. **Generate an API token** on your Forgejo instance
-2. **Run superpull foj-clone** with the instance URL:
+2. **Run superpull foj** with the instance URL:
 
 ```bash
 # Forgejo self-hosted
 export FORGEJO_TOKEN=your-token
-./target/release/superpull foj-clone \
+./target/release/superpull foj \
   https://forgejo.example.com \
   YOUR_ORGANIZATION \
   ./cloned-repos
@@ -140,11 +140,11 @@ If you have access to an actual GitHub Enterprise Server instance, you can manua
 
 1. **Set up GitHub Enterprise Server** on dedicated hardware or VM (see [official docs](https://docs.github.com/en/enterprise-server@latest/admin/installation-configuration-and-management/installing-github-enterprise-server-on-a-virtual-machine))
 2. **Generate a Personal Access Token (PAT)** with appropriate scopes
-3. **Run superpull gh-clone** with the `-s` server URL flag:
+3. **Run superpull gh** with the `-s` server URL flag:
 
 ```bash
 # GitHub Enterprise Server on-prem
-./target/release/superpull gh-clone \
+./target/release/superpull gh \
   -a YOUR_PAT \
   -s https://your-ghes-server.internal:8443 \
   YOUR_ORGANIZATION \
@@ -220,7 +220,7 @@ create_test_repository(&container, &api_token, "test-repo-2")?;
 // Run superpull
 let output = Command::new("./target/release/superpull")
     .args(&[
-        "gea-clone",
+        "gea",
         "-a", &api_token,
         "http://127.0.0.1:3001",
         "test-org",

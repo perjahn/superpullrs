@@ -8,17 +8,17 @@ pub struct Args {
     #[arg(short = 'b')]
     pub bearer_token: bool,
 
-    /// Throttle parallel git pull/clone processes (default: 10)
-    #[arg(short = 'p', default_value = "10")]
-    pub throttle: usize,
-
-    /// Timeout, in seconds (default: 60)
-    #[arg(short = 't', default_value = "60")]
-    pub timeout: u64,
-
     /// Root folder for super-pull (when no subcommand specified)
     #[arg(value_name = "FOLDER")]
     pub folder: Option<String>,
+
+    /// Throttle parallel git pull/clone processes
+    #[arg(short = 'p', default_value = "10")]
+    pub throttle: usize,
+
+    /// Timeout in seconds
+    #[arg(short = 't', default_value = "60")]
+    pub timeout: u64,
 
     #[command(subcommand)]
     pub command: Option<Commands>,
@@ -27,8 +27,7 @@ pub struct Args {
 #[derive(Subcommand, Debug)]
 pub enum Commands {
     /// Pull all git repositories in a folder
-    #[command(visible_alias = "pull")]
-    SuperPull {
+    Pull {
         /// Root folder to search for git repositories
         folder: String,
 
@@ -37,7 +36,7 @@ pub enum Commands {
         recurse: bool,
     },
     /// Clone all repositories from an Azure DevOps organization
-    AzClone {
+    Az {
         /// Azure DevOps organization name
         organization: String,
 
@@ -49,9 +48,17 @@ pub enum Commands {
         #[arg(short = 'a')]
         token: Option<String>,
 
-        /// Azure DevOps base URL for self-hosted (e.g., https://azuredevops.example.com)
-        #[arg(short = 's')]
-        server_url: Option<String>,
+        /// Exclude forked repositories
+        #[arg(short = 'f')]
+        exclude_forked: bool,
+
+        /// Create symbolic links between repos, based on git submodules
+        #[arg(short = 'l')]
+        create_symlinks: bool,
+
+        /// Filter repos for max size in KB
+        #[arg(short = 'm', default_value = "-1")]
+        max_size_kb: i32,
 
         /// Filter repos for specific name, using regex. Can be specified multiple times
         #[arg(short = 'n')]
@@ -61,27 +68,35 @@ pub enum Commands {
         #[arg(short = 'o')]
         exclude_patterns: Vec<String>,
 
-        /// Filter repos for max size in KB
-        #[arg(short = 'm', default_value = "-1")]
-        max_size_kb: i32,
-
-        /// Create symbolic links between repos, based on git submodules
-        #[arg(short = 'l')]
-        create_symlinks: bool,
+        /// Azure DevOps base URL for self-hosted (e.g., https://azuredevops.example.com)
+        #[arg(short = 's')]
+        server_url: Option<String>,
     },
     /// Clone all repositories from a Bitbucket workspace (Cloud) or project (Server/Data Center)
-    BbClone {
+    Bb {
         /// Target folder for cloning
         #[arg(default_value = ".")]
         folder: String,
+
+        /// Use Bitbucket Server API v1.0 instead of v2.0
+        #[arg(short = '1')]
+        use_api_v1: bool,
 
         /// Bitbucket API token (Cloud: personal token or app password, Server: personal token)
         #[arg(short = 'a')]
         token: Option<String>,
 
-        /// For Server/Data Center: base URL (e.g., https://bitbucket.example.com)
-        #[arg(short = 's')]
-        server_url: Option<String>,
+        /// Exclude forked repositories
+        #[arg(short = 'f')]
+        exclude_forked: bool,
+
+        /// Create symbolic links between repos, based on git submodules
+        #[arg(short = 'l')]
+        create_symlinks: bool,
+
+        /// Filter repos for max size in KB
+        #[arg(short = 'm', default_value = "-1")]
+        max_size_kb: i32,
 
         /// Filter repos for specific name, using regex. Can be specified multiple times
         #[arg(short = 'n')]
@@ -91,22 +106,14 @@ pub enum Commands {
         #[arg(short = 'o')]
         exclude_patterns: Vec<String>,
 
-        /// Filter repos for max size in KB
-        #[arg(short = 'm', default_value = "-1")]
-        max_size_kb: i32,
-
-        /// Create symbolic links between repos, based on git submodules
-        #[arg(short = 'l')]
-        create_symlinks: bool,
-
-        /// Use Bitbucket Server API v1.0 instead of v2.0
-        #[arg(short = '1')]
-        use_api_v1: bool,
+        /// For Server/Data Center: base URL (e.g., https://bitbucket.example.com)
+        #[arg(short = 's')]
+        server_url: Option<String>,
     },
     /// Clone all repositories from a Forgejo organization
-    FojClone {
-        /// Forgejo base URL (e.g., https://forgejo.example.com)
-        base_url: String,
+    Foj {
+        /// Forgejo server URL (e.g., https://forgejo.example.com)
+        server_url: String,
 
         /// Forgejo organization name
         organization: String,
@@ -119,6 +126,18 @@ pub enum Commands {
         #[arg(short = 'a')]
         token: Option<String>,
 
+        /// Exclude forked repositories
+        #[arg(short = 'f')]
+        exclude_forked: bool,
+
+        /// Create symbolic links between repos, based on git submodules
+        #[arg(short = 'l')]
+        create_symlinks: bool,
+
+        /// Filter repos for max size in KB
+        #[arg(short = 'm', default_value = "-1")]
+        max_size_kb: i32,
+
         /// Filter repos for specific name, using regex. Can be specified multiple times
         #[arg(short = 'n')]
         name_patterns: Vec<String>,
@@ -126,19 +145,11 @@ pub enum Commands {
         /// Exclude filter repos for specific name, using regex. Can be specified multiple times
         #[arg(short = 'o')]
         exclude_patterns: Vec<String>,
-
-        /// Filter repos for max size in KB
-        #[arg(short = 'm', default_value = "-1")]
-        max_size_kb: i32,
-
-        /// Create symbolic links between repos, based on git submodules
-        #[arg(short = 'l')]
-        create_symlinks: bool,
     },
     /// Clone all repositories from a Gitea organization
-    GeaClone {
-        /// Gitea base URL (e.g., https://gitea.example.com)
-        base_url: String,
+    Gea {
+        /// Gitea server URL (e.g., https://gitea.example.com)
+        server_url: String,
 
         /// Gitea organization name
         organization: String,
@@ -151,6 +162,18 @@ pub enum Commands {
         #[arg(short = 'a')]
         token: Option<String>,
 
+        /// Exclude forked repositories
+        #[arg(short = 'f')]
+        exclude_forked: bool,
+
+        /// Create symbolic links between repos, based on git submodules
+        #[arg(short = 'l')]
+        create_symlinks: bool,
+
+        /// Filter repos for max size in KB
+        #[arg(short = 'm', default_value = "-1")]
+        max_size_kb: i32,
+
         /// Filter repos for specific name, using regex. Can be specified multiple times
         #[arg(short = 'n')]
         name_patterns: Vec<String>,
@@ -158,17 +181,9 @@ pub enum Commands {
         /// Exclude filter repos for specific name, using regex. Can be specified multiple times
         #[arg(short = 'o')]
         exclude_patterns: Vec<String>,
-
-        /// Filter repos for max size in KB
-        #[arg(short = 'm', default_value = "-1")]
-        max_size_kb: i32,
-
-        /// Create symbolic links between repos, based on git submodules
-        #[arg(short = 'l')]
-        create_symlinks: bool,
     },
     /// Clone all repositories from a GitHub organization or user
-    GhClone {
+    Gh {
         /// GitHub entity: orgs/<orgname> or users/<username>
         entity: String,
 
@@ -176,13 +191,21 @@ pub enum Commands {
         #[arg(default_value = ".")]
         folder: String,
 
-        /// GitHub API base URL (for GitHub Enterprise: https://github.example.com/api/v3)
-        #[arg(short = 's')]
-        server_url: Option<String>,
-
         /// Filter repos for specific team. Can be specified multiple times
         #[arg(short = 'e')]
         teams: Vec<String>,
+
+        /// Exclude forked repositories
+        #[arg(short = 'f')]
+        exclude_forked: bool,
+
+        /// Create symbolic links between repos, based on git submodules
+        #[arg(short = 'l')]
+        create_symlinks: bool,
+
+        /// Filter repos for max size in KB of the .git folder
+        #[arg(short = 'm', default_value = "-1")]
+        max_size_kb: i32,
 
         /// Filter repos for specific name, using regex. Can be specified multiple times
         #[arg(short = 'n')]
@@ -192,16 +215,12 @@ pub enum Commands {
         #[arg(short = 'o')]
         exclude_patterns: Vec<String>,
 
-        /// Filter repos for max size in KB of the .git folder
-        #[arg(short = 'm', default_value = "-1")]
-        max_size_kb: i32,
-
-        /// Create symbolic links between repos, based on git submodules
-        #[arg(short = 'l')]
-        create_symlinks: bool,
+        /// GitHub API base URL (for GitHub Enterprise: https://github.example.com/api/v3)
+        #[arg(short = 's')]
+        server_url: Option<String>,
     },
     /// Clone all repositories from a GitLab group or user
-    GlClone {
+    Gl {
         /// GitLab group path or username
         entity: String,
 
@@ -213,13 +232,21 @@ pub enum Commands {
         #[arg(short = 'a')]
         token: Option<String>,
 
-        /// GitLab base URL for self-hosted (e.g., https://gitlab.example.com)
-        #[arg(short = 's')]
-        server_url: Option<String>,
+        /// Exclude forked repositories
+        #[arg(short = 'f')]
+        exclude_forked: bool,
 
         /// If set, treat entity as a group; otherwise treat as user
         #[arg(short = 'g')]
         is_group: bool,
+
+        /// Create symbolic links between repos, based on git submodules
+        #[arg(short = 'l')]
+        create_symlinks: bool,
+
+        /// Filter repos for max size in KB
+        #[arg(short = 'm', default_value = "-1")]
+        max_size_kb: i32,
 
         /// Filter repos for specific name, using regex. Can be specified multiple times
         #[arg(short = 'n')]
@@ -229,12 +256,8 @@ pub enum Commands {
         #[arg(short = 'o')]
         exclude_patterns: Vec<String>,
 
-        /// Filter repos for max size in KB
-        #[arg(short = 'm', default_value = "-1")]
-        max_size_kb: i32,
-
-        /// Create symbolic links between repos, based on git submodules
-        #[arg(short = 'l')]
-        create_symlinks: bool,
+        /// GitLab base URL for self-hosted (e.g., https://gitlab.example.com)
+        #[arg(short = 's')]
+        server_url: Option<String>,
     },
 }

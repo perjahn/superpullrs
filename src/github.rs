@@ -1,8 +1,8 @@
 use anyhow::{Context, Result};
 use base64::Engine;
 use colored::*;
-use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION, USER_AGENT};
 use reqwest::Client;
+use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderValue, USER_AGENT};
 use serde::{Deserialize, Serialize};
 use std::env;
 use std::io::{self, Write};
@@ -22,6 +22,7 @@ const PER_PAGE: u32 = 100;
 struct GithubRepository {
     name: String,
     clone_url: String,
+    fork: bool,
     size: i32,
 }
 
@@ -47,6 +48,7 @@ pub async fn super_clone(
     let filter_opts = FilterOptions::new()
         .with_name_patterns(options.name_patterns.clone())
         .with_exclude_patterns(options.exclude_patterns.clone())
+        .with_exclude_forked(options.exclude_forked)
         .with_max_size_kb(options.max_size_kb);
 
     let repos = get_repos(
@@ -61,7 +63,9 @@ pub async fn super_clone(
 
     if repos.is_empty() {
         if github_token.is_empty() {
-            println!("No git repos found. GITHUB_TOKEN environment variable isn't set, for access to private repos it must be set.");
+            println!(
+                "No git repos found. GITHUB_TOKEN environment variable isn't set, for access to private repos it must be set."
+            );
         } else {
             println!("No git repos found.");
         }
@@ -94,15 +98,15 @@ pub async fn super_clone(
         options.clone(),
         |url| {
             let mut clone_url = url.to_string();
-            if !github_token.is_empty() {
-                if let Some(index) = clone_url.find("://") {
-                    clone_url = format!(
-                        "{}{}@{}",
-                        &clone_url[..index + 3],
-                        github_token,
-                        &clone_url[index + 3..]
-                    );
-                }
+            if !github_token.is_empty()
+                && let Some(index) = clone_url.find("://")
+            {
+                clone_url = format!(
+                    "{}{}@{}",
+                    &clone_url[..index + 3],
+                    github_token,
+                    &clone_url[index + 3..]
+                );
             }
             clone_url
         },
@@ -152,7 +156,7 @@ async fn get_repos(
     let total_repos = repos.len();
 
     // Apply filters using centralized FilterOptions methods
-    repos.retain(|r| filter_opts.should_include(&r.name, r.size));
+    repos.retain(|r| filter_opts.should_include(&r.name, r.fork, r.size));
 
     println!("Found {} repos, filtered to {}.", total_repos, repos.len());
 
@@ -166,6 +170,7 @@ async fn get_repos_paginated(
 ) -> Result<Vec<GithubRepository>> {
     let mut repos = Vec::new();
     let mut next_address = Some(address.to_string());
+    let client = Client::new();
 
     while let Some(url) = next_address {
         println!("Getting repos: '{}'", url);
@@ -189,7 +194,6 @@ async fn get_repos_paginated(
             );
         }
 
-        let client = Client::new();
         let response = client
             .get(&url)
             .headers(headers)
@@ -206,6 +210,13 @@ async fn get_repos_paginated(
             anyhow::bail!("Failed to fetch repos: {} - {}", status, text);
         }
 
+        // Extract next page URL from Link header
+        next_address = response
+            .headers()
+            .get("link")
+            .and_then(|link_header| link_header.to_str().ok())
+            .and_then(extract_next_link);
+
         let response_text = response.text().await.context("Failed to read response")?;
         print!(".");
         let _ = io::stdout().flush();
@@ -214,12 +225,19 @@ async fn get_repos_paginated(
             serde_json::from_str(&response_text).context("Failed to parse repos JSON")?;
 
         repos.extend(page_repos);
-
-        // Check for Link header to get next page
-        next_address = None;
     }
 
     Ok(repos)
+}
+
+fn extract_next_link(link_header: &str) -> Option<String> {
+    // Parse Link header: <url>; rel="next", <url>; rel="last"
+    link_header.split(',').find_map(|part| {
+        let url_start = part.find('<')?;
+        let url_end = part.find('>')?;
+        part.contains("rel=\"next\"")
+            .then(|| part[url_start + 1..url_end].to_string())
+    })
 }
 
 fn clean_url(url: &str) -> String {
@@ -242,4 +260,59 @@ fn clean_url(url: &str) -> String {
         .filter(|s| !s.is_empty())
         .collect::<Vec<_>>()
         .join("_")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_extract_next_link_with_single_next_link() {
+        let link_header = "<https://api.github.com/repos?page=2>; rel=\"next\"";
+        assert_eq!(
+            extract_next_link(link_header),
+            Some("https://api.github.com/repos?page=2".to_string())
+        );
+    }
+
+    #[test]
+    fn test_extract_next_link_with_multiple_links() {
+        let link_header = "<https://api.github.com/repos?page=1>; rel=\"prev\", <https://api.github.com/repos?page=3>; rel=\"next\", <https://api.github.com/repos?page=5>; rel=\"last\"";
+        assert_eq!(
+            extract_next_link(link_header),
+            Some("https://api.github.com/repos?page=3".to_string())
+        );
+    }
+
+    #[test]
+    fn test_extract_next_link_no_next_link() {
+        let link_header = "<https://api.github.com/repos?page=1>; rel=\"prev\", <https://api.github.com/repos?page=5>; rel=\"last\"";
+        assert_eq!(extract_next_link(link_header), None);
+    }
+
+    #[test]
+    fn test_extract_next_link_empty_string() {
+        assert_eq!(extract_next_link(""), None);
+    }
+
+    #[test]
+    fn test_extract_next_link_with_whitespace() {
+        let link_header = " <https://api.github.com/repos?page=2>; rel=\"next\" ";
+        assert_eq!(
+            extract_next_link(link_header),
+            Some("https://api.github.com/repos?page=2".to_string())
+        );
+    }
+
+    #[test]
+    fn test_extract_next_link_complex_url() {
+        let link_header = "<https://api.github.com/orgs/rust-lang/repos?per_page=100&page=2&sort=updated>; rel=\"next\"";
+        assert_eq!(
+            extract_next_link(link_header),
+            Some(
+                "https://api.github.com/orgs/rust-lang/repos?per_page=100&page=2&sort=updated"
+                    .to_string()
+            )
+        );
+    }
 }

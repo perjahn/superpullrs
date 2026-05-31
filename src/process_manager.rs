@@ -50,6 +50,11 @@ impl ProcessManager {
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::piped());
 
+        // Disable interactive git terminal prompts to prevent hangs
+        if program == "git" {
+            cmd.env("GIT_TERMINAL_PROMPT", "0");
+        }
+
         let mut child = cmd.spawn().context("Failed to spawn command")?;
 
         // Extract the output streams

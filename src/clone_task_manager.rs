@@ -53,7 +53,7 @@ where
         while task_set.len() < options.throttle {
             if let Some((repo_name, repo_url)) = repos_iter.next() {
                 let target_path = if target_folder == "." {
-                    repo_name.clone()
+                    repo_name.to_string()
                 } else {
                     format!("{}/{}", target_folder, repo_name)
                 };
@@ -201,14 +201,10 @@ fn calculate_directory_size(path: &str) -> Result<u64, anyhow::Error> {
     let mut total_size: u64 = 0;
 
     fn walk_dir(path: &Path, total: &mut u64) -> std::io::Result<()> {
-        for entry in std::fs::read_dir(path)? {
-            let entry = entry?;
+        for entry in std::fs::read_dir(path)?.flatten() {
             let path = entry.path();
-
             if path.is_file() {
-                if let Ok(metadata) = std::fs::metadata(&path) {
-                    *total += metadata.len();
-                }
+                *total += std::fs::metadata(&path)?.len();
             } else if path.is_dir() {
                 walk_dir(&path, total)?;
             }

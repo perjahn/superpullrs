@@ -9,6 +9,8 @@ pub struct CloneOptions {
     pub name_patterns: Vec<String>,
     /// Exclude filter repos for specific name, using regex
     pub exclude_patterns: Vec<String>,
+    /// Exclude forked repositories
+    pub exclude_forked: bool,
     /// Filter repos for max size in KB
     pub max_size_kb: i32,
     /// Create symbolic links between repos, based on git submodules
@@ -22,6 +24,7 @@ impl Default for CloneOptions {
             timeout: 60,
             name_patterns: Vec::new(),
             exclude_patterns: Vec::new(),
+            exclude_forked: false,
             max_size_kb: -1,
             create_symlinks: false,
         }
@@ -55,6 +58,12 @@ impl CloneOptions {
     /// Set exclude patterns
     pub fn with_exclude_patterns(mut self, patterns: Vec<String>) -> Self {
         self.exclude_patterns = patterns;
+        self
+    }
+
+    /// Set exclude forked flag
+    pub fn with_exclude_forked(mut self, exclude: bool) -> Self {
+        self.exclude_forked = exclude;
         self
     }
 

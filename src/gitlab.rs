@@ -1,7 +1,7 @@
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use colored::*;
-use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION, USER_AGENT};
 use reqwest::Client;
+use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderValue, USER_AGENT};
 use serde::{Deserialize, Serialize};
 use std::env;
 use std::io::{self, Write};
@@ -23,6 +23,7 @@ struct GitlabProject {
     name: String,
     #[serde(rename = "http_url_to_repo")]
     http_url_to_repo: String,
+    forked_from_project: Option<serde_json::Value>,
     size: Option<i32>,
 }
 
@@ -51,6 +52,7 @@ pub async fn super_clone(
     let filter_opts = FilterOptions::new()
         .with_name_patterns(options.name_patterns.clone())
         .with_exclude_patterns(options.exclude_patterns.clone())
+        .with_exclude_forked(options.exclude_forked)
         .with_max_size_kb(options.max_size_kb);
 
     let repos = get_projects(
@@ -64,7 +66,9 @@ pub async fn super_clone(
 
     if repos.is_empty() {
         if gitlab_token.is_none() {
-            println!("No git repos found. GITLAB_TOKEN environment variable isn't set, for access to private projects it must be set.");
+            println!(
+                "No git repos found. GITLAB_TOKEN environment variable isn't set, for access to private projects it must be set."
+            );
         } else {
             println!("No git repos found.");
         }
@@ -92,17 +96,16 @@ pub async fn super_clone(
 
     clone_task_manager::execute_clone_tasks(repo_urls, target_folder, options.clone(), |url| {
         let mut clone_url = url.to_string();
-        if let Some(token) = &gitlab_token {
-            if !token.is_empty() {
-                if let Some(index) = clone_url.find("://") {
-                    clone_url = format!(
-                        "{}oauth2:{}@{}",
-                        &clone_url[..index + 3],
-                        token,
-                        &clone_url[index + 3..]
-                    );
-                }
-            }
+        if let Some(token) = &gitlab_token
+            && !token.is_empty()
+            && let Some(index) = clone_url.find("://")
+        {
+            clone_url = format!(
+                "{}oauth2:{}@{}",
+                &clone_url[..index + 3],
+                token,
+                &clone_url[index + 3..]
+            );
         }
         clone_url
     })
@@ -134,7 +137,13 @@ async fn get_projects(
 
     // Apply filters using centralized FilterOptions methods
     let total_projects = projects.len();
-    projects.retain(|p| filter_opts.should_include(&p.name, p.size.unwrap_or(0)));
+    projects.retain(|p| {
+        filter_opts.should_include(
+            &p.name,
+            p.forked_from_project.is_some(),
+            p.size.unwrap_or(0),
+        )
+    });
 
     println!(
         "Found {} projects, filtered to {}.",
@@ -158,6 +167,7 @@ async fn get_projects_paginated(
 
     let mut projects = Vec::new();
     let mut page = 1;
+    let client = Client::new();
 
     loop {
         let url = format!(
@@ -169,16 +179,16 @@ async fn get_projects_paginated(
         let mut headers = HeaderMap::new();
         headers.insert(USER_AGENT, HeaderValue::from_static("superpull/1.0"));
 
-        if let Some(token) = token {
-            if !token.is_empty() {
-                headers.insert(
-                    AUTHORIZATION,
-                    HeaderValue::from_str(&format!("Private-Token {}", token))?,
-                );
-            }
+        if let Some(token) = token
+            && !token.is_empty()
+        {
+            headers.insert(
+                AUTHORIZATION,
+                HeaderValue::from_str(&format!("PRIVATE-TOKEN {}", token))?,
+            );
         }
 
-        let response = Client::new().get(&url).headers(headers).send().await?;
+        let response = client.get(&url).headers(headers).send().await?;
 
         if !response.status().is_success() {
             return Err(anyhow!(

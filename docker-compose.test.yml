@@ -20,7 +20,7 @@ services:
           memory: 256M
 
   bitbucket:
-    image: atlassian/bitbucket-server:latest
+    image: atlassian/bitbucket:latest
     container_name: superpull-bitbucket-test
     ports:
       - "7991:7990"
@@ -31,7 +31,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
-    # Bitbucket Server requires significant resources
+    # Bitbucket requires significant resources
     deploy:
       resources:
         limits:

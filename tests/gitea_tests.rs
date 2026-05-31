@@ -1,11 +1,11 @@
 use std::process::Command;
 
 mod docker_helpers;
-use docker_helpers::{is_docker_available, DockerContainer};
+use docker_helpers::{DockerContainer, is_docker_available};
 
 fn check_gitea_ready(port: u16) -> bool {
     Command::new("curl")
-        .args(&[
+        .args([
             "-s",
             &format!("http://127.0.0.1:{}/", port),
             "-o",
@@ -61,7 +61,7 @@ fn gitea_clone_with_superpull() {
         }
     }
 
-    println!("Testing superpull gea-clone against Gitea...");
+    println!("Testing superpull gea against Gitea...");
 
     // Create output directory for cloned repos
     let output_dir = "/tmp/superpull-gitea-test";
@@ -72,15 +72,14 @@ fn gitea_clone_with_superpull() {
 
     // Run superpull against Gitea
     let superpull_output = Command::new("./target/release/superpull")
-        .args(&[
-            "gea-clone",
+        .args([
+            "gea",
             "http://127.0.0.1:3001",
             "test-user",
             output_dir,
             "-a",
             "test-token",
         ])
-        .env("GIT_TERMINAL_PROMPT", "0")
         .output();
 
     match superpull_output {
@@ -103,7 +102,9 @@ fn gitea_clone_with_superpull() {
                 if !entries.is_empty() {
                     println!("✓ Successfully cloned {} repositories", entries.len());
                 } else {
-                    println!("⚠ Warning: No repositories were cloned (may be expected if test-user has no repos)");
+                    println!(
+                        "⚠ Warning: No repositories were cloned (may be expected if test-user has no repos)"
+                    );
                 }
             } else {
                 println!("⚠ superpull command did not succeed (expected if no repos available)");

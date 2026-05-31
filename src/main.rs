@@ -25,8 +25,8 @@ async fn main() -> Result<()> {
     let command = match (args.command, args.folder) {
         // Explicit subcommand provided
         (Some(cmd), _) => cmd,
-        // No subcommand but folder provided - default to SuperPull
-        (None, Some(folder)) => cli::Commands::SuperPull {
+        // No subcommand but folder provided - default to Pull
+        (None, Some(folder)) => cli::Commands::Pull {
             folder,
             recurse: false,
         },
@@ -40,16 +40,17 @@ async fn main() -> Result<()> {
     };
 
     match command {
-        cli::Commands::SuperPull { folder, recurse } => {
+        cli::Commands::Pull { folder, recurse } => {
             git::super_pull(&folder, recurse, args.throttle, args.timeout).await?;
         }
-        cli::Commands::AzClone {
+        cli::Commands::Az {
             organization,
             folder,
             token,
             server_url,
             name_patterns,
             exclude_patterns,
+            exclude_forked,
             max_size_kb,
             create_symlinks,
         } => {
@@ -58,6 +59,7 @@ async fn main() -> Result<()> {
                 .with_timeout(args.timeout)
                 .with_name_patterns(name_patterns)
                 .with_exclude_patterns(exclude_patterns)
+                .with_exclude_forked(exclude_forked)
                 .with_max_size_kb(max_size_kb)
                 .with_create_symlinks(create_symlinks);
 
@@ -70,12 +72,13 @@ async fn main() -> Result<()> {
             )
             .await?;
         }
-        cli::Commands::BbClone {
+        cli::Commands::Bb {
             folder,
             token,
             server_url,
             name_patterns,
             exclude_patterns,
+            exclude_forked,
             max_size_kb,
             create_symlinks,
             use_api_v1,
@@ -85,6 +88,7 @@ async fn main() -> Result<()> {
                 .with_timeout(args.timeout)
                 .with_name_patterns(name_patterns)
                 .with_exclude_patterns(exclude_patterns)
+                .with_exclude_forked(exclude_forked)
                 .with_max_size_kb(max_size_kb)
                 .with_create_symlinks(create_symlinks);
 
@@ -98,13 +102,14 @@ async fn main() -> Result<()> {
             )
             .await?;
         }
-        cli::Commands::FojClone {
-            base_url,
+        cli::Commands::Foj {
+            server_url,
             organization,
             folder,
             token,
             name_patterns,
             exclude_patterns,
+            exclude_forked,
             max_size_kb,
             create_symlinks,
         } => {
@@ -113,19 +118,27 @@ async fn main() -> Result<()> {
                 .with_timeout(args.timeout)
                 .with_name_patterns(name_patterns)
                 .with_exclude_patterns(exclude_patterns)
+                .with_exclude_forked(exclude_forked)
                 .with_max_size_kb(max_size_kb)
                 .with_create_symlinks(create_symlinks);
 
-            forgejo::super_clone(&base_url, &organization, &folder, token.as_deref(), options)
-                .await?;
+            forgejo::super_clone(
+                &server_url,
+                &organization,
+                &folder,
+                token.as_deref(),
+                options,
+            )
+            .await?;
         }
-        cli::Commands::GeaClone {
-            base_url,
+        cli::Commands::Gea {
+            server_url,
             organization,
             folder,
             token,
             name_patterns,
             exclude_patterns,
+            exclude_forked,
             max_size_kb,
             create_symlinks,
         } => {
@@ -134,19 +147,27 @@ async fn main() -> Result<()> {
                 .with_timeout(args.timeout)
                 .with_name_patterns(name_patterns)
                 .with_exclude_patterns(exclude_patterns)
+                .with_exclude_forked(exclude_forked)
                 .with_max_size_kb(max_size_kb)
                 .with_create_symlinks(create_symlinks);
 
-            gitea::super_clone(&base_url, &organization, &folder, token.as_deref(), options)
-                .await?;
+            gitea::super_clone(
+                &server_url,
+                &organization,
+                &folder,
+                token.as_deref(),
+                options,
+            )
+            .await?;
         }
-        cli::Commands::GhClone {
+        cli::Commands::Gh {
             entity,
             folder,
             server_url,
             teams,
             name_patterns,
             exclude_patterns,
+            exclude_forked,
             max_size_kb,
             create_symlinks,
         } => {
@@ -155,6 +176,7 @@ async fn main() -> Result<()> {
                 .with_timeout(args.timeout)
                 .with_name_patterns(name_patterns)
                 .with_exclude_patterns(exclude_patterns)
+                .with_exclude_forked(exclude_forked)
                 .with_max_size_kb(max_size_kb)
                 .with_create_symlinks(create_symlinks);
 
@@ -168,7 +190,7 @@ async fn main() -> Result<()> {
             )
             .await?;
         }
-        cli::Commands::GlClone {
+        cli::Commands::Gl {
             entity,
             folder,
             token,
@@ -176,6 +198,7 @@ async fn main() -> Result<()> {
             is_group,
             name_patterns,
             exclude_patterns,
+            exclude_forked,
             max_size_kb,
             create_symlinks,
         } => {
@@ -184,6 +207,7 @@ async fn main() -> Result<()> {
                 .with_timeout(args.timeout)
                 .with_name_patterns(name_patterns)
                 .with_exclude_patterns(exclude_patterns)
+                .with_exclude_forked(exclude_forked)
                 .with_max_size_kb(max_size_kb)
                 .with_create_symlinks(create_symlinks);
 

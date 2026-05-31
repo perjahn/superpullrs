@@ -160,7 +160,8 @@ jobs:
             ### Installation
             ```bash
             # Download the appropriate binary for your platform
-            curl -L https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/superpull-<platform> -o superpull
+            curl -L https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/superpull-<platform>.tar.gz -o superpull.tar.gz
+            tar -xzf superpull.tar.gz
             chmod +x superpull
             ./superpull --help
             ```

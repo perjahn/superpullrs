@@ -24,10 +24,11 @@ pub async fn super_pull(folder: &str, recurse: bool, throttle: usize, timeout: u
             .into_iter()
             .filter_map(|e| e.ok())
         {
-            if entry.file_name() == ".git" && entry.file_type().is_dir() {
-                if let Some(parent) = entry.path().parent() {
-                    repos.push(parent.to_string_lossy().to_string());
-                }
+            if entry.file_name() == ".git"
+                && entry.file_type().is_dir()
+                && let Some(parent) = entry.path().parent()
+            {
+                repos.push(parent.to_string_lossy().to_string());
             }
         }
     } else {
@@ -54,12 +55,12 @@ pub async fn super_pull(folder: &str, recurse: bool, throttle: usize, timeout: u
     for repo_folder in &repos {
         // Wait if we have too many tasks running
         while tasks.len() >= throttle {
-            if let Some(task) = tasks.pop_front() {
-                if let Ok((folder_name, result)) = task.await {
-                    match result {
-                        Ok(_) => println!("{}", format!("Done: {}", folder_name).green()),
-                        Err(e) => println!("{}", format!("Error: {} - {}", folder_name, e).red()),
-                    }
+            if let Some(task) = tasks.pop_front()
+                && let Ok((folder_name, result)) = task.await
+            {
+                match result {
+                    Ok(_) => println!("{}", format!("Done: {}", folder_name).green()),
+                    Err(e) => println!("{}", format!("Error: {} - {}", folder_name, e).red()),
                 }
             }
         }

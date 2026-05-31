@@ -1,11 +1,11 @@
 use std::process::Command;
 
 mod docker_helpers;
-use docker_helpers::{is_docker_available, DockerContainer};
+use docker_helpers::{DockerContainer, is_docker_available};
 
 fn check_gitlab_ready(port: u16) -> bool {
     Command::new("curl")
-        .args(&[
+        .args([
             "-s",
             &format!("http://127.0.0.1:{}/", port),
             "-o",
@@ -68,7 +68,7 @@ fn gitlab_clone_with_superpull() {
         }
     }
 
-    println!("Testing superpull gl-clone against GitLab...");
+    println!("Testing superpull gl against GitLab...");
 
     // Create output directory for cloned repos
     let output_dir = "/tmp/superpull-gitlab-test";
@@ -79,8 +79,8 @@ fn gitlab_clone_with_superpull() {
 
     // Run superpull against GitLab
     let superpull_output = Command::new("./target/release/superpull")
-        .args(&[
-            "gl-clone",
+        .args([
+            "gl",
             "root",
             output_dir,
             "-s",
@@ -88,7 +88,6 @@ fn gitlab_clone_with_superpull() {
             "-a",
             "test-token",
         ])
-        .env("GIT_TERMINAL_PROMPT", "0")
         .output();
 
     match superpull_output {
@@ -111,10 +110,14 @@ fn gitlab_clone_with_superpull() {
                 if !entries.is_empty() {
                     println!("✓ Successfully cloned {} repositories", entries.len());
                 } else {
-                    println!("⚠ Warning: No repositories were cloned (may be expected if no groups exist)");
+                    println!(
+                        "⚠ Warning: No repositories were cloned (may be expected if no groups exist)"
+                    );
                 }
             } else {
-                println!("⚠ superpull command did not succeed (expected if no groups/projects available)");
+                println!(
+                    "⚠ superpull command did not succeed (expected if no groups/projects available)"
+                );
             }
         }
         Err(e) => {

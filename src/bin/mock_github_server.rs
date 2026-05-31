@@ -3,7 +3,7 @@
 /// This server provides basic GitHub API v3 compatibility for:
 /// - List repositories in an organization: GET /api/v3/{org}/repos
 /// - List team repositories: GET /api/v3/{org}/teams/{team}/repos
-/// - Clone URLs with SSH or HTTPS
+/// - Clone URLs with HTTPS
 ///
 /// Usage:
 /// - Run on port 8443 (configurable via PORT env var)
@@ -49,7 +49,7 @@ async fn health_check() -> &'static str {
 async fn list_org_repos(
     axum::extract::Path(org): axum::extract::Path<String>,
     axum::extract::Query(params): axum::extract::Query<std::collections::HashMap<String, String>>,
-) -> axum::Json<serde_json::Value> {
+) -> (axum::http::HeaderMap, axum::Json<serde_json::Value>) {
     let page: u32 = params.get("page").and_then(|p| p.parse().ok()).unwrap_or(1);
 
     let per_page: u32 = params
@@ -58,13 +58,47 @@ async fn list_org_repos(
         .unwrap_or(30);
 
     let repos = generate_mock_repos(&org, page, per_page);
-    axum::Json(repos)
+
+    // Build Link header for pagination (RFC 5988)
+    let mut link_header = String::new();
+
+    // Always include first page link
+    link_header.push_str(&format!(
+        r#"<http://127.0.0.1:8443/api/v3/{}/repos?page=1&per_page={}>; rel="first""#,
+        org, per_page
+    ));
+
+    // Add next page link if not on last page (101 total repos)
+    let total_repos: u32 = 101;
+    #[allow(clippy::manual_div_ceil)]
+    let last_page = (total_repos + per_page - 1) / per_page;
+    if page < last_page {
+        link_header.push_str(&format!(
+            r#", <http://127.0.0.1:8443/api/v3/{}/repos?page={}&per_page={}>; rel="next""#,
+            org,
+            page + 1,
+            per_page
+        ));
+    }
+
+    // Add last page link
+    link_header.push_str(&format!(
+        r#", <http://127.0.0.1:8443/api/v3/{}/repos?page={}&per_page={}>; rel="last""#,
+        org, last_page, per_page
+    ));
+
+    let mut headers = axum::http::HeaderMap::new();
+    if let Ok(header_value) = axum::http::HeaderValue::from_str(&link_header) {
+        headers.insert(axum::http::header::LINK, header_value);
+    }
+
+    (headers, axum::Json(repos))
 }
 
 async fn list_team_repos(
     axum::extract::Path((org, team)): axum::extract::Path<(String, String)>,
     axum::extract::Query(params): axum::extract::Query<std::collections::HashMap<String, String>>,
-) -> axum::Json<serde_json::Value> {
+) -> (axum::http::HeaderMap, axum::Json<serde_json::Value>) {
     let page: u32 = params.get("page").and_then(|p| p.parse().ok()).unwrap_or(1);
 
     let per_page: u32 = params
@@ -87,12 +121,21 @@ async fn list_team_repos(
         });
     }
 
-    axum::Json(repos)
+    let mut headers = axum::http::HeaderMap::new();
+    let link_header = format!(
+        r#"<http://127.0.0.1:8443/api/v3/{}/teams/{}/repos?page=1&per_page={}>; rel="first""#,
+        org, team, per_page
+    );
+    if let Ok(header_value) = axum::http::HeaderValue::from_str(&link_header) {
+        headers.insert(axum::http::header::LINK, header_value);
+    }
+
+    (headers, axum::Json(repos))
 }
 
 fn generate_mock_repos(org: &str, page: u32, per_page: u32) -> serde_json::Value {
-    // Generate deterministic mock repositories
-    let total_repos = 25;
+    // Generate deterministic mock repositories (101 total to test pagination)
+    let total_repos = 101;
     let start = ((page - 1) * per_page) as usize;
     let end = (start + per_page as usize).min(total_repos);
 

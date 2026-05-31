@@ -3,7 +3,7 @@ use crate::clone_task_manager;
 use crate::debug_utils;
 use crate::filter_options::FilterOptions;
 use crate::symlink_manager;
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use colored::Colorize;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
@@ -12,6 +12,7 @@ use std::io::{self, Write};
 use std::time::Instant;
 
 const BITBUCKET_SAAS_API: &str = "https://api.bitbucket.org/2.0";
+const PER_PAGE: u32 = 100;
 
 #[derive(Serialize, Deserialize, Debug)]
 struct BitbucketRepository {
@@ -21,6 +22,8 @@ struct BitbucketRepository {
     size: u32,
     #[serde(skip)]
     workspace: String,
+    #[serde(skip)]
+    parent: Option<Box<serde_json::Value>>,
 }
 
 // API v1.0 Response structures
@@ -42,6 +45,8 @@ struct BitbucketRepositoryV1 {
     name: String,
     links: RepositoryLinks,
     project: ProjectInfo,
+    #[serde(default)]
+    parent: Option<Box<serde_json::Value>>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -79,6 +84,8 @@ struct BitbucketRepositoryV2 {
     name: String,
     full_name: String,
     links: RepositoryLinks,
+    #[serde(default)]
+    parent: Option<Box<serde_json::Value>>,
     size: u32,
 }
 
@@ -107,6 +114,7 @@ pub async fn super_clone(
     let filter_opts = FilterOptions::new()
         .with_name_patterns(options.name_patterns.clone())
         .with_exclude_patterns(options.exclude_patterns.clone())
+        .with_exclude_forked(options.exclude_forked)
         .with_max_size_kb(options.max_size_kb);
 
     let repos = get_repos(bearer_token, token, server_url, use_api_v1, filter_opts).await?;
@@ -131,17 +139,15 @@ pub async fn super_clone(
 
     clone_task_manager::execute_clone_tasks(clone_repos, folder, options.clone(), |url| {
         let mut clone_url = url.to_string();
-        if bearer_token {
-            if let Some(ref token) = token_owned {
-                // For Bitbucket, use x-token-auth prefix
-                if let Some(index) = clone_url.find("://") {
-                    clone_url = format!(
-                        "{}x-token-auth:{}@{}",
-                        &clone_url[..index + 3],
-                        token,
-                        &clone_url[index + 3..]
-                    );
-                }
+        if bearer_token && let Some(ref token) = token_owned {
+            // For Bitbucket, use x-token-auth prefix
+            if let Some(index) = clone_url.find("://") {
+                clone_url = format!(
+                    "{}x-token-auth:{}@{}",
+                    &clone_url[..index + 3],
+                    token,
+                    &clone_url[index + 3..]
+                );
             }
         }
         clone_url
@@ -177,18 +183,16 @@ async fn get_repos_v1(
     filter_opts: FilterOptions,
 ) -> Result<Vec<BitbucketRepository>> {
     let api_url = if let Some(url) = server_url {
-        format!("{}/rest/api/1.0", url.trim_end_matches('/'))
+        format!("{}/rest/api/1.0/repos", url.trim_end_matches('/'))
     } else {
         return Err(anyhow!("API v1.0 requires server_url to be specified"));
     };
 
     let client = Client::new();
     let mut repos = Vec::new();
-    let base_url = format!("{}/repos", api_url);
-    let mut url = format!("{}?start=0&limit=100", base_url);
-    let mut has_more = true;
+    let mut url = format!("{}?start=0&limit={}", api_url, PER_PAGE);
 
-    while has_more {
+    loop {
         let mut request = client.get(&url);
 
         if let Some(token) = token {
@@ -196,7 +200,12 @@ async fn get_repos_v1(
                 request = request.bearer_auth(token);
             } else {
                 // For API tokens, use Basic auth
-                request = request.basic_auth(token.split(':').next().unwrap_or(token), Some(token));
+                if let Some(colon_pos) = token.find(':') {
+                    request =
+                        request.basic_auth(&token[..colon_pos], Some(&token[colon_pos + 1..]));
+                } else {
+                    request = request.basic_auth(token, Some(""));
+                }
             }
         }
 
@@ -224,18 +233,21 @@ async fn get_repos_v1(
                 links: repo.links,
                 size: 0,
                 workspace: repo.project.key.to_lowercase(),
+                parent: repo.parent,
             });
         }
 
-        has_more = !data.is_last_page;
-        if has_more {
-            // Use same base_url pattern, only update start parameter
-            url = format!(
-                "{}?start={}&limit=100",
-                base_url,
-                data.next_page_start.unwrap_or(0)
-            );
+        if data.is_last_page {
+            break;
         }
+
+        // Use same repos_base_url pattern, only update start parameter
+        url = format!(
+            "{}?start={}&limit={}",
+            api_url,
+            data.next_page_start.unwrap_or(0),
+            PER_PAGE
+        );
     }
     println!();
 
@@ -275,7 +287,7 @@ async fn get_repos_v2(
 
     // Apply filters using centralized FilterOptions methods
     let total_repos = all_repos.len();
-    all_repos.retain(|r| filter_opts.should_include_bytes(&r.name, r.size));
+    all_repos.retain(|r| filter_opts.should_include_bytes(&r.name, r.parent.is_some(), r.size));
 
     if !filter_opts.name_patterns.is_empty() || all_repos.len() != total_repos {
         println!(
@@ -293,7 +305,7 @@ async fn get_workspaces(
     token: Option<&str>,
     api_url: &str,
 ) -> Result<Vec<BitbucketWorkspaceV2>> {
-    let url = format!("{}/workspaces?pagelen=100", api_url);
+    let mut url = format!("{}/workspaces?pagelen={}", api_url, PER_PAGE);
     println!("Getting workspaces from: '{}'", url);
 
     let client = Client::new();
@@ -303,7 +315,11 @@ async fn get_workspaces(
         if bearer_token {
             request = request.bearer_auth(token);
         } else {
-            request = request.basic_auth(token.split(':').next().unwrap_or(token), Some(token));
+            if let Some(colon_pos) = token.find(':') {
+                request = request.basic_auth(&token[..colon_pos], Some(&token[colon_pos + 1..]));
+            } else {
+                request = request.basic_auth(token, Some(""));
+            }
         }
     }
 
@@ -318,16 +334,20 @@ async fn get_workspaces(
     }
 
     let mut workspaces = Vec::new();
-    let mut next_url = Some(url);
 
-    while let Some(url) = next_url {
+    loop {
         let mut request = client.get(&url);
 
         if let Some(token) = token {
             if bearer_token {
                 request = request.bearer_auth(token);
             } else {
-                request = request.basic_auth(token.split(':').next().unwrap_or(token), Some(token));
+                if let Some(colon_pos) = token.find(':') {
+                    request =
+                        request.basic_auth(&token[..colon_pos], Some(&token[colon_pos + 1..]));
+                } else {
+                    request = request.basic_auth(token, Some(""));
+                }
             }
         }
 
@@ -347,7 +367,12 @@ async fn get_workspaces(
         let _ = debug_utils::save_api_response("bitbucket", "workspaces", &response_text);
         let data: PaginatedWorkspaceV2 = serde_json::from_str(&response_text)?;
         workspaces.extend(data.values);
-        next_url = data.next;
+
+        if let Some(next) = data.next {
+            url = next;
+        } else {
+            break;
+        }
     }
 
     Ok(workspaces)
@@ -359,20 +384,26 @@ async fn get_repos_for_workspace(
     api_url: &str,
     workspace_slug: &str,
 ) -> Result<Vec<BitbucketRepository>> {
-    let url = format!("{}/repositories/{}?pagelen=100", api_url, workspace_slug);
-
     let client = Client::new();
     let mut repos = Vec::new();
-    let mut next_url = Some(url);
+    let mut url = format!(
+        "{}/repositories/{}?pagelen={}",
+        api_url, workspace_slug, PER_PAGE
+    );
 
-    while let Some(url) = next_url {
+    loop {
         let mut request = client.get(&url);
 
         if let Some(token) = token {
             if bearer_token {
                 request = request.bearer_auth(token);
             } else {
-                request = request.basic_auth(token.split(':').next().unwrap_or(token), Some(token));
+                if let Some(colon_pos) = token.find(':') {
+                    request =
+                        request.basic_auth(&token[..colon_pos], Some(&token[colon_pos + 1..]));
+                } else {
+                    request = request.basic_auth(token, Some(""));
+                }
             }
         }
 
@@ -404,10 +435,15 @@ async fn get_repos_for_workspace(
                 links: repo.links,
                 size: repo.size,
                 workspace: workspace_slug.to_string(),
+                parent: repo.parent,
             });
         }
 
-        next_url = data.next;
+        if let Some(next) = data.next {
+            url = next;
+        } else {
+            break;
+        }
     }
 
     Ok(repos)
@@ -431,4 +467,22 @@ fn extract_https_clone_url(repo: &BitbucketRepository) -> Result<String> {
                 repo.name
             )
         })
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn test_bitbucket_fork_detection() {
+        use crate::filter_options::FilterOptions;
+
+        let filter = FilterOptions::new().with_exclude_forked(true);
+
+        // Non-forked repo (no parent)
+        let parent_none: Option<Box<serde_json::Value>> = None;
+        assert!(filter.should_include_bytes("non_forked_repo", parent_none.is_some(), 1024));
+
+        // Forked repo (has parent)
+        let parent_some = Some(Box::new(serde_json::json!({"id": "parent-repo"})));
+        assert!(!filter.should_include_bytes("forked_repo", parent_some.is_some(), 1024));
+    }
 }
