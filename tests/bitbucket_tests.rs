@@ -79,6 +79,7 @@ fn bitbucket_clone_with_superpull() {
     let superpull_output = Command::new("./target/release/superpull")
         .args([
             "bb",
+            "test-project",
             output_dir,
             "-s",
             "http://127.0.0.1:7990",

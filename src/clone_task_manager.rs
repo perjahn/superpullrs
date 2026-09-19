@@ -20,6 +20,19 @@ pub async fn execute_clone_tasks<F>(
     repos: Vec<(String, String)>,
     target_folder: &str,
     options: CloneOptions,
+    token_injector: F,
+) -> Result<(), anyhow::Error>
+where
+    F: FnMut(&str) -> String,
+{
+    execute_clone_tasks_with_auth_header(repos, target_folder, options, None, token_injector).await
+}
+
+pub async fn execute_clone_tasks_with_auth_header<F>(
+    repos: Vec<(String, String)>,
+    target_folder: &str,
+    options: CloneOptions,
+    auth_header: Option<String>,
     mut token_injector: F,
 ) -> Result<(), anyhow::Error>
 where
@@ -77,14 +90,34 @@ where
                 let pm_clone = ProcessManager::new(options.throttle, options.timeout);
                 let target_path_clone = target_path.clone();
                 let log_file_clone = Arc::clone(&log_file);
+                let auth_header_clone = auth_header.clone();
 
                 task_set.spawn(async move {
                     let clone_start = Instant::now();
 
-                    let (success, output, is_timeout) = match pm_clone
-                        .run_git_command(".", &["clone", &clone_url, &target_path_clone])
-                        .await
-                    {
+                    let command_result = match auth_header_clone {
+                        Some(auth_header) => {
+                            let git_auth_header = format!("http.extraheader={auth_header}");
+                            pm_clone
+                                .run_git_command(
+                                    ".",
+                                    &[
+                                        "-c",
+                                        &git_auth_header,
+                                        "clone",
+                                        &clone_url,
+                                        &target_path_clone,
+                                    ],
+                                )
+                                .await
+                        }
+                        None => {
+                            pm_clone
+                                .run_git_command(".", &["clone", &clone_url, &target_path_clone])
+                                .await
+                        }
+                    };
+                    let (success, output, is_timeout) = match command_result {
                         Ok((success, output, is_timeout)) => (success, output, is_timeout),
                         Err(e) => (false, e.to_string(), false),
                     };

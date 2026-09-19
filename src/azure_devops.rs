@@ -32,7 +32,7 @@ struct AzureRepository {
     remote_url: String,
     #[serde(default)]
     is_fork: bool,
-    size: i32,
+    size: i64,
     #[serde(skip)]
     project: String,
 }
@@ -47,9 +47,20 @@ struct AzureRepositoriesResponse {
     value: Vec<AzureRepository>,
 }
 
+fn authorization_header(token: &str, bearer_token: bool) -> Result<HeaderValue> {
+    if bearer_token {
+        Ok(HeaderValue::from_str(&format!("Bearer {}", token))?)
+    } else {
+        let encoded = base64::engine::general_purpose::STANDARD.encode(format!("PAT:{}", token));
+        Ok(HeaderValue::from_str(&format!("Basic {}", encoded))?)
+    }
+}
+
 pub async fn super_clone(
     organization: &str,
+    project: Option<&str>,
     folder: &str,
+    bearer_token: bool,
     token: Option<&str>,
     server_url: Option<&str>,
     options: CloneOptions,
@@ -78,7 +89,15 @@ pub async fn super_clone(
         .with_exclude_forked(options.exclude_forked)
         .with_max_size_kb(options.max_size_kb);
 
-    let repos = get_repos(organization, &azure_token, server_url, filter_opts).await?;
+    let repos = get_repos(
+        organization,
+        project,
+        &azure_token,
+        bearer_token,
+        server_url,
+        filter_opts,
+    )
+    .await?;
 
     if repos.is_empty() {
         println!("No git repos found.");
@@ -105,24 +124,31 @@ pub async fn super_clone(
     repo_urls.sort_by(|a, b| a.1.cmp(&b.1));
 
     let clone_repos = repo_urls.clone();
+    let auth_header = bearer_token.then(|| format!("AUTHORIZATION: bearer {}", azure_token));
 
-    clone_task_manager::execute_clone_tasks(repo_urls, target_folder, options.clone(), |url| {
-        let mut clone_url = url.to_string();
-        if !azure_token.is_empty()
-            && let Some(index) = clone_url.find("://")
-        {
-            // Azure DevOps uses PAT:token format
-            let encoded =
-                base64::engine::general_purpose::STANDARD.encode(format!("PAT:{}", azure_token));
-            clone_url = format!(
-                "{}{}@{}",
-                &clone_url[..index + 3],
-                encoded,
-                &clone_url[index + 3..]
-            );
-        }
-        clone_url
-    })
+    clone_task_manager::execute_clone_tasks_with_auth_header(
+        repo_urls,
+        target_folder,
+        options.clone(),
+        auth_header,
+        |url| {
+            let mut clone_url = url.to_string();
+            if !bearer_token
+                && !azure_token.is_empty()
+                && let Some(index) = clone_url.find("://")
+            {
+                let encoded = base64::engine::general_purpose::STANDARD
+                    .encode(format!("PAT:{}", azure_token));
+                clone_url = format!(
+                    "{}{}@{}",
+                    &clone_url[..index + 3],
+                    encoded,
+                    &clone_url[index + 3..]
+                );
+            }
+            clone_url
+        },
+    )
     .await?;
 
     if options.create_symlinks {
@@ -135,21 +161,28 @@ pub async fn super_clone(
 
 async fn get_repos(
     organization: &str,
+    project: Option<&str>,
     token: &str,
+    bearer_token: bool,
     server_url: Option<&str>,
     filter_opts: FilterOptions,
 ) -> Result<Vec<AzureRepository>> {
-    // First get all projects
-    let projects = get_projects(organization, token, server_url).await?;
-    println!("Found {} projects", projects.len());
+    let mut all_repos = if let Some(project) = project {
+        get_repos_for_project(organization, project, token, bearer_token, server_url).await?
+    } else {
+        // First get all projects
+        let projects = get_projects(organization, token, bearer_token, server_url).await?;
+        println!("Found {} projects", projects.len());
 
-    let mut all_repos = Vec::new();
-
-    // Then for each project, get its repositories
-    for project in projects {
-        let repos = get_repos_for_project(organization, &project.name, token, server_url).await?;
-        all_repos.extend(repos);
-    }
+        let mut all_repos = Vec::new();
+        for project in projects {
+            let repos =
+                get_repos_for_project(organization, &project.name, token, bearer_token, server_url)
+                    .await?;
+            all_repos.extend(repos);
+        }
+        all_repos
+    };
     println!();
 
     // Apply filters using centralized FilterOptions methods
@@ -168,6 +201,7 @@ async fn get_repos(
 async fn get_projects(
     organization: &str,
     token: &str,
+    bearer_token: bool,
     server_url: Option<&str>,
 ) -> Result<Vec<AzureProject>> {
     let server_url_str = if let Some(url) = server_url {
@@ -177,7 +211,6 @@ async fn get_projects(
     };
     let api_url = format!("{}/{}/_apis/projects", server_url_str, organization);
     let client = Client::new();
-    let auth = base64::engine::general_purpose::STANDARD.encode(format!("PAT:{}", token));
     let mut projects = Vec::new();
     let mut url = format!("{}?api-version=7.1&$top={}", api_url, PER_PAGE);
 
@@ -186,10 +219,7 @@ async fn get_projects(
 
         let mut headers = HeaderMap::new();
         headers.insert(USER_AGENT, HeaderValue::from_static("superpull/1.0"));
-        headers.insert(
-            AUTHORIZATION,
-            HeaderValue::from_str(&format!("Basic {}", auth))?,
-        );
+        headers.insert(AUTHORIZATION, authorization_header(token, bearer_token)?);
 
         let response = client.get(&url).headers(headers).send().await?;
 
@@ -237,6 +267,7 @@ async fn get_repos_for_project(
     organization: &str,
     project: &str,
     token: &str,
+    bearer_token: bool,
     server_url: Option<&str>,
 ) -> Result<Vec<AzureRepository>> {
     let server_url_str = if let Some(url) = server_url {
@@ -246,7 +277,6 @@ async fn get_repos_for_project(
     };
     let api_url = format!("{}/{}/_apis/git/repositories", server_url_str, organization);
     let client = Client::new();
-    let auth = base64::engine::general_purpose::STANDARD.encode(format!("PAT:{}", token));
     let mut repos = Vec::new();
     let mut url = format!(
         "{}?project={}&api-version=7.1&$top={}",
@@ -258,10 +288,7 @@ async fn get_repos_for_project(
 
         let mut headers = HeaderMap::new();
         headers.insert(USER_AGENT, HeaderValue::from_static("superpull/1.0"));
-        headers.insert(
-            AUTHORIZATION,
-            HeaderValue::from_str(&format!("Basic {}", auth))?,
-        );
+        headers.insert(AUTHORIZATION, authorization_header(token, bearer_token)?);
 
         let response = client.get(&url).headers(headers).send().await?;
 

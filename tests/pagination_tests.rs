@@ -100,7 +100,15 @@ fn azure_devops_pagination() {
     println!("Running Azure DevOps az with pagination (101 repos, 100 per page)...");
     let superpull_output = Command::new("./target/release/superpull")
         .env("AZURE_DEVOPS_TOKEN", "test-token")
-        .args(["az", "-s", "http://127.0.0.1:8091", "test-org", output_dir])
+        .args([
+            "az",
+            "-s",
+            "http://127.0.0.1:8091",
+            "-w",
+            "test-project-001",
+            "test-org",
+            output_dir,
+        ])
         .output();
 
     match superpull_output {

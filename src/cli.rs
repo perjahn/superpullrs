@@ -4,20 +4,16 @@ use clap::{Parser, Subcommand};
 #[command(name = "superpull")]
 #[command(about = "Faster git repo puller", long_about = None)]
 pub struct Args {
-    /// Use bearer token auth, instead of basic auth
-    #[arg(short = 'b')]
-    pub bearer_token: bool,
-
     /// Root folder for super-pull (when no subcommand specified)
     #[arg(value_name = "FOLDER")]
     pub folder: Option<String>,
 
     /// Throttle parallel git pull/clone processes
-    #[arg(short = 'p', default_value = "10")]
+    #[arg(short = 'p', default_value = "10", global = true)]
     pub throttle: usize,
 
     /// Timeout in seconds
-    #[arg(short = 't', default_value = "60")]
+    #[arg(short = 't', default_value = "60", global = true)]
     pub timeout: u64,
 
     #[command(subcommand)]
@@ -40,13 +36,21 @@ pub enum Commands {
         /// Azure DevOps organization name
         organization: String,
 
+        /// Optional Azure DevOps project name
+        #[arg(short = 'w', long = "project")]
+        project: Option<String>,
+
         /// Target folder for cloning
         #[arg(default_value = ".")]
         folder: String,
 
-        /// Azure DevOps Personal Access Token (PAT)
+        /// Azure DevOps PAT or OAuth access token
         #[arg(short = 'a')]
         token: Option<String>,
+
+        /// Use bearer authentication with an OAuth access token
+        #[arg(short = 'b')]
+        bearer_token: bool,
 
         /// Exclude forked repositories
         #[arg(short = 'f')]
@@ -58,7 +62,7 @@ pub enum Commands {
 
         /// Filter repos for max size in KB
         #[arg(short = 'm', default_value = "-1")]
-        max_size_kb: i32,
+        max_size_kb: i64,
 
         /// Filter repos for specific name, using regex. Can be specified multiple times
         #[arg(short = 'n')]
@@ -74,6 +78,10 @@ pub enum Commands {
     },
     /// Clone all repositories from a Bitbucket workspace (Cloud) or project (Server/Data Center)
     Bb {
+        /// Bitbucket Cloud workspace or Server/Data Center project key
+        #[arg(short = 'w', long = "workspace-or-project")]
+        workspace_or_project: Option<String>,
+
         /// Target folder for cloning
         #[arg(default_value = ".")]
         folder: String,
@@ -82,9 +90,13 @@ pub enum Commands {
         #[arg(short = '1')]
         use_api_v1: bool,
 
-        /// Bitbucket API token (Cloud: personal token or app password, Server: personal token)
+        /// Bitbucket API token, app password, or username:password credentials
         #[arg(short = 'a')]
         token: Option<String>,
+
+        /// Use bearer authentication with an OAuth access token
+        #[arg(short = 'b')]
+        bearer_token: bool,
 
         /// Exclude forked repositories
         #[arg(short = 'f')]
@@ -96,7 +108,7 @@ pub enum Commands {
 
         /// Filter repos for max size in KB
         #[arg(short = 'm', default_value = "-1")]
-        max_size_kb: i32,
+        max_size_kb: i64,
 
         /// Filter repos for specific name, using regex. Can be specified multiple times
         #[arg(short = 'n')]
@@ -136,7 +148,7 @@ pub enum Commands {
 
         /// Filter repos for max size in KB
         #[arg(short = 'm', default_value = "-1")]
-        max_size_kb: i32,
+        max_size_kb: i64,
 
         /// Filter repos for specific name, using regex. Can be specified multiple times
         #[arg(short = 'n')]
@@ -172,7 +184,7 @@ pub enum Commands {
 
         /// Filter repos for max size in KB
         #[arg(short = 'm', default_value = "-1")]
-        max_size_kb: i32,
+        max_size_kb: i64,
 
         /// Filter repos for specific name, using regex. Can be specified multiple times
         #[arg(short = 'n')]
@@ -191,6 +203,10 @@ pub enum Commands {
         #[arg(default_value = ".")]
         folder: String,
 
+        /// Use bearer authentication instead of basic auth
+        #[arg(short = 'b')]
+        bearer_token: bool,
+
         /// Filter repos for specific team. Can be specified multiple times
         #[arg(short = 'e')]
         teams: Vec<String>,
@@ -205,7 +221,7 @@ pub enum Commands {
 
         /// Filter repos for max size in KB of the .git folder
         #[arg(short = 'm', default_value = "-1")]
-        max_size_kb: i32,
+        max_size_kb: i64,
 
         /// Filter repos for specific name, using regex. Can be specified multiple times
         #[arg(short = 'n')]
@@ -246,7 +262,7 @@ pub enum Commands {
 
         /// Filter repos for max size in KB
         #[arg(short = 'm', default_value = "-1")]
-        max_size_kb: i32,
+        max_size_kb: i64,
 
         /// Filter repos for specific name, using regex. Can be specified multiple times
         #[arg(short = 'n')]

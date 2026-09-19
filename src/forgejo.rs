@@ -23,7 +23,7 @@ struct ForgejoRepository {
     #[serde(rename = "clone_url")]
     clone_url: String,
     fork: bool,
-    size: i32,
+    size: i64,
 }
 
 pub async fn super_clone(

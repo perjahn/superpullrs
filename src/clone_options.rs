@@ -12,7 +12,7 @@ pub struct CloneOptions {
     /// Exclude forked repositories
     pub exclude_forked: bool,
     /// Filter repos for max size in KB
-    pub max_size_kb: i32,
+    pub max_size_kb: i64,
     /// Create symbolic links between repos, based on git submodules
     pub create_symlinks: bool,
 }
@@ -68,7 +68,7 @@ impl CloneOptions {
     }
 
     /// Set max size
-    pub fn with_max_size_kb(mut self, size: i32) -> Self {
+    pub fn with_max_size_kb(mut self, size: i64) -> Self {
         self.max_size_kb = size;
         self
     }

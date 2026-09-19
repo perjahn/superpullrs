@@ -5,7 +5,7 @@ pub struct FilterOptions {
     pub name_patterns: Vec<String>,
     pub exclude_patterns: Vec<String>,
     pub exclude_forked: bool,
-    pub max_size_kb: i32,
+    pub max_size_kb: i64,
 }
 
 impl FilterOptions {
@@ -33,7 +33,7 @@ impl FilterOptions {
         self
     }
 
-    pub fn with_max_size_kb(mut self, max_size: i32) -> Self {
+    pub fn with_max_size_kb(mut self, max_size: i64) -> Self {
         self.max_size_kb = max_size;
         self
     }
@@ -75,7 +75,7 @@ impl FilterOptions {
     }
 
     /// Check if a repository should be included based on size in KB.
-    pub fn should_include_by_size(&self, size_kb: i32) -> bool {
+    pub fn should_include_by_size(&self, size_kb: i64) -> bool {
         if self.max_size_kb >= 0 {
             size_kb <= self.max_size_kb
         } else {
@@ -84,16 +84,16 @@ impl FilterOptions {
     }
 
     /// Check if a repository should be included based on name, fork status, and size (in KB).
-    pub fn should_include(&self, name: &str, is_forked: bool, size_kb: i32) -> bool {
+    pub fn should_include(&self, name: &str, is_forked: bool, size_kb: i64) -> bool {
         self.should_include_by_size(size_kb)
             && self.should_include_by_name(name)
             && self.should_include_by_fork(is_forked)
     }
 
     /// Check if a repository should be included based on name, fork status, and size (in bytes).
-    /// Useful for systems that report size in bytes (e.g., Bitbucket).
-    pub fn should_include_bytes(&self, name: &str, is_forked: bool, size_bytes: u32) -> bool {
-        let size_kb = (size_bytes / 1024) as i32;
+    /// Useful for systems that report size in bytes (e.g. Bitbucket).
+    pub fn should_include_bytes(&self, name: &str, is_forked: bool, size_bytes: i64) -> bool {
+        let size_kb = size_bytes / 1024;
         self.should_include(name, is_forked, size_kb)
     }
 }

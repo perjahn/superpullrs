@@ -10,7 +10,7 @@ A fast, parallel git repository puller written in Rust.
 
 - **pull**: Recursively find and pull all git repositories in a directory
 - **az**: Clone all repositories from an Azure DevOps organization
-- **bb**: Clone all repositories from a Bitbucket Cloud workspace or Server/Data Center project
+- **bb**: Clone all repositories from Bitbucket Cloud or Server/Data Center
 - **foj**: Clone all repositories from a self-hosted Forgejo instance
 - **gea**: Clone all repositories from a self-hosted Gitea instance
 - **gh**: Clone all repositories from a GitHub organization or user
@@ -33,7 +33,7 @@ All commands support parallel execution with global options:
 |------|-------------|:---------:|:-------:|:-------:|:--------:|:--------:|:-------:|:-------:|
 | `-1` | API v1.0 (Bitbucket) | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ |
 | `-a` | API Token | ❌ | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ |
-| `-b` | Bearer token auth | ❌ | ❌ | ✅ | ❌ | ❌ | ✅ | ❌ |
+| `-b` | Bearer token auth | ❌ | ✅ | ✅ | ❌ | ❌ | ✅ | ❌ |
 | `-e` | Team filter (GitHub) | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ |
 | `-f` | Exclude forked repos | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `-g` | Group flag (GitLab) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ |
@@ -45,8 +45,7 @@ All commands support parallel execution with global options:
 | `-r` | Recurse into subfolders | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
 | `-s` | Server/API base URL | ❌ | ✅ | ✅ | (arg)¹ | (arg)¹ | ✅ | ✅ |
 | `-t` | Timeout (global) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-
-The `-b` (bearer token) flag is only for clone commands that need API authentication (AzClone, BbClone, GhClone) and is ignored by the default pull mode. The `-b` is for API authentication and varies by service: Bitbucket uses for clone URL injection, GitHub uses for HTTP header bearer auth
+| `-w` | Workspace/project scope | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
 
 ¹ Forgejo and Gitea use positional `<server_url>` argument instead of `-s` flag (e.g. `foj https://forgejo.example.com org-name` or `gea https://gitea.example.com org-name`)
 
@@ -63,36 +62,41 @@ Options:
 ### Clone all repositories from Azure DevOps
 
 ```bash
-superpull az [-a token] [-f] [-l] [-m size] [-n regex] [-o regex] [-s server_url] <organization> [folder]
+superpull az [-a token] [-b] [-f] [-l] [-m size] [-n regex] [-o regex] [-s server_url] [-w project] <organization> [folder]
 ```
 
 Options:
-- `-a`: Azure DevOps Personal Access Token (PAT)
+- `-a`: Azure DevOps PAT, or OAuth access token when `-b` is used
+- `-b`: Use bearer authentication with an OAuth access token
 - `-f`: Exclude forked repositories
 - `-l`: Create symbolic links for git submodules
 - `-m`: Max size in KB
 - `-n`: Filter repos by name regex (can be specified multiple times)
 - `-o`: Exclude repos by name regex (can be specified multiple times)
-- `-s`: Self-hosted Azure DevOps base URL (e.g., https://azuredevops.example.com)
+- `-s`: Self-hosted Azure DevOps base URL (e.g. https://azuredevops.example.com)
+- `-w`: Scope to clone only repositories in that project. If omitted, all accessible projects are cloned.
 
 ### Clone all repositories from Bitbucket
 
 ```bash
-superpull bb [-1] [-a token] [-f] [-l] [-m size] [-n regex] [-o regex] [-s server_url] <workspace> [folder]
+superpull bb [-1] [-a token] [-b] [-f] [-l] [-m size] [-n regex] [-o regex] [-s server_url] [-w workspace_or_project] [folder]
 ```
 
-For Bitbucket Cloud, use workspace name. For Server/Data Center, use project key and `-s` for server URL.
+For Bitbucket Cloud, optionally provide `-w workspace`. For Server/Data Center, optionally provide `-w project` and `-s` for the server URL. If omitted, all accessible workspaces/projects are cloned. The output folder is always the final positional argument.
 
 Options:
 - `-1`: Use Bitbucket Server API v1.0 instead of v2.0
-- `-a`: Bitbucket API token (Cloud: personal token or app password, Server: personal token)
-- `-b`: Use bearer token authentication (required for token-based cloning)
+- `-a`: Bitbucket API token, app password, or `username:password` credentials. For Cloud API tokens, use `email:token`.
+- `-b`: Use bearer authentication with an OAuth access token, using `x-token-auth` credential
 - `-f`: Exclude forked repositories
 - `-l`: Create symbolic links for git submodules
 - `-m`: Max size in KB
 - `-n`: Filter repos by name regex (can be specified multiple times)
 - `-o`: Exclude repos by name regex (can be specified multiple times)
-- `-s`: Server/Data Center base URL (e.g., https://bitbucket.example.com)
+- `-s`: Server/Data Center base URL (e.g. https://bitbucket.example.com)
+- `-w`: Scope to a Cloud workspace or Server/Data Center project key
+
+Bitbucket Server API v1.0 does not provide repository sizes, so `-m` has no effect when `-1` is used.
 
 ### Clone all repositories from Forgejo
 
@@ -125,12 +129,12 @@ Options:
 ### Clone all repositories from GitHub
 
 ```bash
-superpull gh [-e team] [-f] [-l] [-m size] [-n regex] [-o regex] [-s server_url] <entity> [folder]
+superpull gh [-b] [-e team] [-f] [-l] [-m size] [-n regex] [-o regex] [-s server_url] <entity> [folder]
 ```
 
 The `<entity>` parameter specifies where to clone repositories from:
-- For organizations: `orgs/<orgname>` (e.g., `orgs/microsoft`)
-- For users: `users/<username>` (e.g., `users/octocat`)
+- For organizations: `orgs/<orgname>` (e.g. `orgs/microsoft`)
+- For users: `users/<username>` (e.g. `users/octocat`)
 
 Options:
 - `-b`: Use bearer token authentication instead of basic auth
@@ -140,7 +144,7 @@ Options:
 - `-m`: Max size in KB of the .git folder
 - `-n`: Filter repos by name regex (can be specified multiple times)
 - `-o`: Exclude repos by name regex (can be specified multiple times)
-- `-s`: GitHub API base URL for GitHub Enterprise (e.g., https://github.example.com/api/v3)
+- `-s`: GitHub API base URL for GitHub Enterprise (e.g. https://github.example.com/api/v3)
 
 ### Clone all repositories from GitLab
 
@@ -149,8 +153,8 @@ superpull gl [-a token] [-f] [-g] [-l] [-m size] [-n regex] [-o regex] [-s serve
 ```
 
 The `<entity>` parameter specifies what to clone repositories from:
-- For groups: group path (e.g., `mygroup` or `parent/subgroup`) — use `-g` flag
-- For users: username (e.g., `octocat`)
+- For groups: group path (e.g. `mygroup` or `parent/subgroup`) — use `-g` flag
+- For users: username (e.g. `octocat`)
 
 Options:
 - `-a`: GitLab personal access token or CI job token
@@ -160,12 +164,12 @@ Options:
 - `-m`: Max size in KB
 - `-n`: Filter repos by name regex (can be specified multiple times)
 - `-o`: Exclude repos by name regex (can be specified multiple times)
-- `-s`: Self-hosted GitLab base URL (e.g., https://gitlab.example.com)
+- `-s`: Self-hosted GitLab base URL (e.g. https://gitlab.example.com)
 
 ### Environment Variables
 
-- `AZURE_DEVOPS_TOKEN`: Azure DevOps Personal Access Token (required for cloning private repos)
-- `BITBUCKET_TOKEN`: Personal token or app password for Bitbucket Cloud API (required for cloning private repos)
+- `AZURE_DEVOPS_TOKEN`: Azure DevOps PAT, or Azure DevOps Services OAuth access token when `-b` is used (required for private repos)
+- `BITBUCKET_TOKEN`: Bitbucket API token, app password, OAuth access token, or `username:password` credentials (used when `-a` is not provided)
 - `FORGEJO_TOKEN`: Forgejo API token (required for cloning private repos)
 - `GITEA_TOKEN`: Gitea API token (required for cloning private repos)
 - `GITHUB_TOKEN`: Personal access token for GitHub API (required for cloning private repos)
@@ -179,39 +183,51 @@ Options:
 superpull .
 
 # Pull all repos recursively
-superpull -r .
-
-# Pull with explicit pull subcommand
 superpull pull -r .
 
 # Clone all repos from an Azure DevOps organization (cloud)
 export AZURE_DEVOPS_TOKEN=<your-pat>
-superpull az myorg ./myorg-repos
+superpull az myorg
+
+# Clone Azure DevOps with an OAuth bearer token
+export AZURE_DEVOPS_TOKEN=<your-oauth-access-token>
+superpull az -b myorg
+
+# Clone all repos from one Azure DevOps project
+superpull az -w myproject myorg ./myproject-repos
 
 # Clone all repos from self-hosted Azure DevOps
 export AZURE_DEVOPS_TOKEN=<your-pat>
-superpull az -s https://azuredevops.example.com myorg ./myorg-repos
+superpull az -s https://azuredevops.example.com myorg
+
+# Clone one project from self-hosted Azure DevOps
+superpull az -s https://azuredevops.example.com -w myproject myorg ./myproject-repos
 
 # Clone repos from Azure DevOps with filtering
-superpull az -p 5 -n "^backend-" myorg ./backend-repos
+superpull az -p 5 -n "^backend-" -w myproject myorg ./backend-repos
 
-# Clone all repos from a Bitbucket Cloud workspace
+# Clone all repos from a Bitbucket Cloud workspace with an OAuth access token
 export BITBUCKET_TOKEN=<your-token>
-superpull -b bb -a $BITBUCKET_TOKEN myworkspace ./myworkspace-repos
+superpull bb -b -a $BITBUCKET_TOKEN -w myworkspace ./myworkspace-repos
+
+# Clone all repos from a Bitbucket Cloud workspace with an API token
+# Use the Atlassian account email and API token for REST API Basic auth.
+export BITBUCKET_TOKEN=<atlassian-email>:<api-token>
+superpull bb -a $BITBUCKET_TOKEN -w myworkspace ./myworkspace-repos
 
 # Clone all repos from on-prem Bitbucket Server/Data Center
 export BITBUCKET_TOKEN=<your-token>
-superpull -b bb -a $BITBUCKET_TOKEN -s https://bitbucket.example.com PROJECT ./project-repos
+superpull bb -b -a $BITBUCKET_TOKEN -s https://bitbucket.example.com -w PROJECT ./project-repos
 
 # Clone all repos from older Bitbucket Server using API v1.0
 export BITBUCKET_TOKEN=<your-token>
-superpull -b bb -a $BITBUCKET_TOKEN -s https://bitbucket.example.com -1 PROJECT ./project-repos
+superpull bb -b -a $BITBUCKET_TOKEN -s https://bitbucket.example.com -1 -w PROJECT ./project-repos
 
 # Clone repos from Bitbucket Cloud with filtering
-superpull -b bb -a $BITBUCKET_TOKEN -n "^sdk-" -p 5 myworkspace ./sdk-repos
+superpull bb -b -a $BITBUCKET_TOKEN -n "^sdk-" -p 5 -w myworkspace ./sdk-repos
 
 # Clone repos from Bitbucket and exclude private repos
-superpull -b bb -a $BITBUCKET_TOKEN -o "^internal-" myworkspace ./public-repos
+superpull bb -b -a $BITBUCKET_TOKEN -o "^internal-" -w myworkspace ./public-repos
 
 # Clone all repos from a self-hosted Forgejo instance
 export FORGEJO_TOKEN=<your-token>
@@ -264,7 +280,7 @@ superpull gh -f orgs/myorg ./myorg-repos
 
 # Clone repos from Azure DevOps excluding forks and filtering by name
 export AZURE_DEVOPS_TOKEN=<your-token>
-superpull az -f -n "^production-" myorg ./prod-repos
+superpull az -f -n "^production-" myorg
 
 # Clone repos from GitLab excluding forks
 export GITLAB_TOKEN=<your-token>

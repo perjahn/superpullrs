@@ -45,8 +45,10 @@ async fn main() -> Result<()> {
         }
         cli::Commands::Az {
             organization,
+            project,
             folder,
             token,
+            bearer_token,
             server_url,
             name_patterns,
             exclude_patterns,
@@ -65,7 +67,9 @@ async fn main() -> Result<()> {
 
             azure_devops::super_clone(
                 &organization,
+                project.as_deref(),
                 &folder,
+                bearer_token,
                 token.as_deref(),
                 server_url.as_deref(),
                 options,
@@ -73,8 +77,10 @@ async fn main() -> Result<()> {
             .await?;
         }
         cli::Commands::Bb {
+            workspace_or_project,
             folder,
             token,
+            bearer_token,
             server_url,
             name_patterns,
             exclude_patterns,
@@ -94,7 +100,8 @@ async fn main() -> Result<()> {
 
             bitbucket::super_clone(
                 &folder,
-                args.bearer_token,
+                workspace_or_project.as_deref(),
+                bearer_token,
                 token.as_deref(),
                 server_url.as_deref(),
                 use_api_v1,
@@ -163,6 +170,7 @@ async fn main() -> Result<()> {
         cli::Commands::Gh {
             entity,
             folder,
+            bearer_token,
             server_url,
             teams,
             name_patterns,
@@ -183,7 +191,7 @@ async fn main() -> Result<()> {
             github::super_clone(
                 &entity,
                 &folder,
-                args.bearer_token,
+                bearer_token,
                 server_url.as_deref(),
                 teams,
                 options,

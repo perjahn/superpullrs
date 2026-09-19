@@ -24,7 +24,7 @@ struct GitlabProject {
     #[serde(rename = "http_url_to_repo")]
     http_url_to_repo: String,
     forked_from_project: Option<serde_json::Value>,
-    size: Option<i32>,
+    size: Option<i64>,
 }
 
 pub async fn super_clone(

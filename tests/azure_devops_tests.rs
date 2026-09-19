@@ -103,6 +103,8 @@ fn azure_devops_clone_with_superpull() {
             "test-token",
             "-s",
             "http://127.0.0.1:8091",
+            "-w",
+            "test-project-001",
             "test-org",
             output_dir,
         ])
