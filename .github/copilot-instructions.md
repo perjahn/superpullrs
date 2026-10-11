@@ -16,6 +16,17 @@ Superpull provides seven main commands:
 
 ## Development
 
+### Required validation before completion
+
+For any Rust code changes, always validate with the project’s required checks before concluding work is complete:
+
+```bash
+cargo test
+cargo clippy --all-targets -- -D warnings
+```
+
+Do not stop after a partial build or a single targeted test. If a change affects behavior or compilation, run the relevant tests and the clippy lint gate.
+
 ### Building
 
 ```bash
